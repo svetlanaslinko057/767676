@@ -84,13 +84,33 @@ class IntelligenceScheduler:
             logger.error(f"[IntelScheduler] Graph snapshot failed: {e}")
     
     async def _check_momentum_alerts(self):
-        """Check for momentum velocity alerts"""
+        """Check for momentum velocity alerts and send to Telegram"""
         try:
             from modules.intelligence.momentum_alerts import get_momentum_alert_engine
+            from modules.scheduler.telegram_integration import get_telegram_integration
+            
             engine = get_momentum_alert_engine(self.db)
+            telegram = get_telegram_integration(self.db)
             
             result = await engine.check_all_entities()
-            logger.info(f"[IntelScheduler] Momentum alerts: {result.get('alerts_created', 0)} new alerts")
+            alerts_created = result.get('alerts_created', 0)
+            
+            # Send Telegram notifications for new alerts
+            if alerts_created > 0:
+                # Get the actual alerts that were created
+                new_alerts = result.get('alerts', [])
+                for alert in new_alerts[:5]:  # Limit to 5 per batch
+                    try:
+                        await telegram.on_momentum_spike(
+                            entity_id=alert.get('entity_id', 'unknown'),
+                            entity_type=alert.get('entity_type', 'unknown'),
+                            velocity=alert.get('velocity', 0),
+                            score=alert.get('score', 0)
+                        )
+                    except Exception as e:
+                        logger.error(f"[IntelScheduler] Failed to send momentum alert: {e}")
+            
+            logger.info(f"[IntelScheduler] Momentum alerts: {alerts_created} new alerts")
         except Exception as e:
             logger.error(f"[IntelScheduler] Momentum alerts check failed: {e}")
     
@@ -104,6 +124,56 @@ class IntelligenceScheduler:
             logger.info(f"[IntelScheduler] Discovery: {result.get('processed', 0)} entities processed")
         except Exception as e:
             logger.error(f"[IntelScheduler] Discovery processing failed: {e}")
+    
+    async def _send_daily_report(self):
+        """Send daily system report to Telegram"""
+        try:
+            from modules.telegram_service.alert_engine import get_alert_engine
+            
+            engine = get_alert_engine(self.db)
+            
+            # Gather real stats
+            nodes = await self.db.graph_nodes.count_documents({})
+            edges = await self.db.graph_edges.count_documents({})
+            momentum = await self.db.entity_momentum.count_documents({})
+            high_mom = await self.db.entity_momentum.count_documents({"momentum_score": {"$gte": 50}})
+            
+            # Get scheduler health
+            from modules.scheduler.data_sync_scheduler import get_scheduler
+            scheduler = get_scheduler(self.db)
+            health = scheduler.get_health_status()
+            
+            healthy = sum(1 for h in health.values() if h.get('health_score', 0) >= 0.7)
+            degraded = sum(1 for h in health.values() if 0.3 <= h.get('health_score', 0) < 0.7)
+            down = sum(1 for h in health.values() if h.get('is_paused', False))
+            
+            success_count = sum(h.get('success_count', 0) for h in health.values())
+            fail_count = sum(h.get('fail_count', 0) for h in health.values())
+            
+            data = {
+                "sources_healthy": healthy,
+                "sources_degraded": degraded,
+                "sources_down": down,
+                "parsers_success": success_count,
+                "parsers_errors": fail_count,
+                "graph_nodes": nodes,
+                "graph_edges": edges,
+                "momentum_tracked": momentum,
+                "momentum_high": high_mom,
+                "new_entities": 0,  # Could track this
+                "status_message": "Ежедневный отчет системы." if down == 0 else f"Внимание: {down} источников недоступны."
+            }
+            
+            await engine.emit_alert(
+                alert_code="daily_system_report",
+                data=data,
+                entity="daily_report",
+                force=True
+            )
+            
+            logger.info(f"[IntelScheduler] Daily report sent")
+        except Exception as e:
+            logger.error(f"[IntelScheduler] Daily report failed: {e}")
     
     def setup_jobs(self):
         """Setup scheduled jobs"""
@@ -161,7 +231,16 @@ class IntelligenceScheduler:
             replace_existing=True
         )
         
-        logger.info("[IntelScheduler] Setup 6 jobs: momentum, projections, narrative_linking, graph_growth, alerts, discovery")
+        # Daily report - every 24 hours (at startup + every 24h)
+        self.scheduler.add_job(
+            self._send_daily_report,
+            trigger=IntervalTrigger(hours=24),
+            id="intel_daily_report",
+            name="Daily System Report",
+            replace_existing=True
+        )
+        
+        logger.info("[IntelScheduler] Setup 7 jobs: momentum, projections, narrative_linking, graph_growth, alerts, discovery, daily_report")
     
     def start(self):
         """Start the scheduler"""

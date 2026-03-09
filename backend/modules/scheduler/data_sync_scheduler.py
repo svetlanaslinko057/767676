@@ -81,6 +81,7 @@ class SourceHealth:
     
     def record_success(self):
         self.success_count += 1
+        self._was_failing = self.consecutive_fails > 0  # Track if was failing
         self.consecutive_fails = 0
         self.last_success = datetime.now(timezone.utc)
         self.is_paused = False
@@ -157,10 +158,18 @@ class TierOrderedScheduler:
         self._source_health: Dict[str, SourceHealth] = {}
         self._last_tier_run: Dict[int, datetime] = {}
         self._execution_lock = asyncio.Lock()
+        self._telegram = None  # Telegram integration
         
         # Register event listeners
         self.scheduler.add_listener(self._on_job_executed, EVENT_JOB_EXECUTED)
         self.scheduler.add_listener(self._on_job_error, EVENT_JOB_ERROR)
+    
+    def _get_telegram(self):
+        """Lazy load telegram integration"""
+        if self._telegram is None:
+            from modules.scheduler.telegram_integration import get_telegram_integration
+            self._telegram = get_telegram_integration(self.db)
+        return self._telegram
     
     def _get_health(self, source_id: str) -> SourceHealth:
         """Get or create health tracker for source"""
@@ -176,9 +185,19 @@ class TierOrderedScheduler:
         source_id = parts[1] if len(parts) > 1 else job_id
         
         health = self._get_health(source_id)
+        was_failing = getattr(health, '_was_failing', False)
         health.record_success()
         
         logger.info(f"[SYNC] ✓ {job_id} completed (health: {health.health_score:.2f})")
+        
+        # Send recovery alert if source was failing before
+        if was_failing:
+            import asyncio
+            try:
+                telegram = self._get_telegram()
+                asyncio.create_task(telegram.on_source_recovered(source_id))
+            except Exception as e:
+                logger.error(f"[SYNC] Failed to send recovery alert: {e}")
     
     def _on_job_error(self, event):
         """Track failed job execution"""
@@ -187,9 +206,29 @@ class TierOrderedScheduler:
         source_id = parts[1] if len(parts) > 1 else job_id
         
         health = self._get_health(source_id)
+        was_paused = health.is_paused
         health.record_fail(str(event.exception))
         
         logger.error(f"[SYNC] ✗ {job_id} failed (consecutive: {health.consecutive_fails}, health: {health.health_score:.2f})")
+        
+        # Send alerts via Telegram
+        import asyncio
+        try:
+            telegram = self._get_telegram()
+            
+            # Send parser_failed on first fail
+            if health.consecutive_fails == 1:
+                asyncio.create_task(telegram.on_parser_failed(source_id, str(event.exception)))
+            
+            # Send source_down when auto-paused
+            if health.is_paused and not was_paused:
+                asyncio.create_task(telegram.on_source_down(
+                    source_id, 
+                    health.consecutive_fails,
+                    str(event.exception)
+                ))
+        except Exception as e:
+            logger.error(f"[SYNC] Failed to send failure alert: {e}")
     
     async def _run_tier(self, tier: int):
         """
