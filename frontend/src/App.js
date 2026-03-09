@@ -4669,7 +4669,7 @@ function App() {
   
   const [apiKeysData, setApiKeysData] = useState({ keys: [], services: [], summary: {} });
   const [apiKeysLoading, setApiKeysLoading] = useState(false);
-  const [newApiKey, setNewApiKey] = useState({ service: 'coingecko', api_key: '', name: '', is_pro: false });
+  const [newApiKey, setNewApiKey] = useState({ service: '', api_key: '', name: '', is_pro: false, proxy_id: null });
   const [apiKeyServiceDropdown, setApiKeyServiceDropdown] = useState(false);
   const [adminSubTab, setAdminSubTab] = useState('proxy'); // 'proxy', 'api-keys', 'llm-keys', 'sentiment-keys', 'providers', 'health', 'discovery'
   const [apiKeyServiceFilter, setApiKeyServiceFilter] = useState(null); // null = show all, or 'coingecko', 'coinmarketcap', 'messari'
@@ -5017,7 +5017,7 @@ function App() {
   };
   
   const addApiKey = async () => {
-    if (!newApiKey.api_key) return;
+    if (!newApiKey.api_key || !newApiKey.service) return;
     setApiKeysLoading(true);
     try {
       const res = await fetch(`${API_URL}/api/admin/api-keys`, {
@@ -5027,7 +5027,7 @@ function App() {
       });
       const data = await res.json();
       if (data.ok) {
-        setNewApiKey({ service: 'coingecko', api_key: '', name: '', is_pro: false });
+        setNewApiKey({ service: '', api_key: '', name: '', is_pro: false, proxy_id: null });
         await fetchApiKeys();
       }
     } catch (err) {
@@ -8347,10 +8347,12 @@ function App() {
             <div 
               onClick={() => setApiKeyServiceDropdown(!apiKeyServiceDropdown)}
               className="w-full px-4 py-2 rounded-xl border cursor-pointer flex items-center justify-between"
-              style={{ borderColor: colors.border, backgroundColor: 'white' }}
+              style={{ borderColor: 'white', backgroundColor: 'white', boxShadow: '0 1px 3px rgba(0,0,0,0.08)' }}
             >
-              <span style={{ color: colors.text }}>
-                {apiKeysData.services?.find(s => s.id === newApiKey.service)?.name || newApiKey.service}
+              <span style={{ color: newApiKey.service ? colors.text : colors.textMuted }}>
+                {newApiKey.service 
+                  ? (apiKeysData.services?.find(s => s.id === newApiKey.service)?.name || newApiKey.service)
+                  : 'Select service...'}
               </span>
               <ChevronRight 
                 size={16} 
@@ -8364,7 +8366,7 @@ function App() {
             {apiKeyServiceDropdown && (
               <div 
                 className="absolute top-full left-0 right-0 mt-1 rounded-xl border shadow-lg z-50 overflow-hidden max-h-60 overflow-y-auto"
-                style={{ backgroundColor: 'white', borderColor: colors.border }}
+                style={{ backgroundColor: 'white', borderColor: 'white', boxShadow: '0 4px 20px rgba(0,0,0,0.15)' }}
               >
                 {apiKeysData.services?.map((service) => (
                   <div
@@ -8449,11 +8451,11 @@ function App() {
             <select
               value={newApiKey.proxy_id || ''}
               onChange={(e) => setNewApiKey({...newApiKey, proxy_id: e.target.value || null})}
-              className="w-full px-4 py-2 rounded-xl border"
-              style={{ borderColor: colors.border }}
+              className="w-full px-4 py-2 rounded-xl border appearance-none"
+              style={{ borderColor: 'white', backgroundColor: 'white', boxShadow: '0 1px 3px rgba(0,0,0,0.08)' }}
             >
-              <option value="">Direct (no proxy)</option>
-              {proxyStatus?.proxies?.filter(p => p.enabled).map(proxy => (
+              <option value="">✓ Direct (no proxy)</option>
+              {proxyStatus?.proxies?.filter(p => p.enabled).sort((a, b) => a.priority - b.priority).map((proxy, idx) => (
                 <option key={proxy.id} value={proxy.id}>
                   {proxy.server} (Priority: {proxy.priority})
                 </option>
@@ -8465,11 +8467,11 @@ function App() {
           <div className="col-span-2 flex items-end">
             <button
               onClick={addApiKey}
-              disabled={!newApiKey.api_key || apiKeysLoading}
+              disabled={!newApiKey.api_key || !newApiKey.service || apiKeysLoading}
               className="w-full py-2 rounded-xl font-medium transition-all flex items-center justify-center gap-2"
               style={{ 
-                backgroundColor: newApiKey.api_key ? colors.accent : colors.surface, 
-                color: newApiKey.api_key ? 'white' : colors.textMuted 
+                backgroundColor: (newApiKey.api_key && newApiKey.service) ? colors.accent : colors.surface, 
+                color: (newApiKey.api_key && newApiKey.service) ? 'white' : colors.textMuted 
               }}
             >
               <Plus size={16} />

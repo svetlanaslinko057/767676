@@ -166,7 +166,8 @@ class APIKeysManager:
         service: str,
         api_key: str,
         name: Optional[str] = None,
-        is_pro: bool = False
+        is_pro: bool = False,
+        proxy_id: Optional[str] = None
     ) -> Dict[str, Any]:
         """Add a new API key for a service"""
         now = datetime.now(timezone.utc).isoformat()
@@ -187,6 +188,7 @@ class APIKeysManager:
             "is_pro": is_pro,
             "enabled": True,
             "healthy": True,
+            "proxy_id": proxy_id,  # Bind to specific proxy
             # Stats
             "requests_total": 0,
             "requests_today": 0,

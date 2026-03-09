@@ -27,12 +27,11 @@ async def list_services():
     from modules.intel.api_keys_manager import SERVICE_CONFIG, ServiceType
     
     # Include services that benefit from API keys
+    # Note: GitHub and Twitter removed - we don't parse them
     ALLOWED_SERVICES = [
-        ServiceType.GITHUB,
         ServiceType.COINGECKO, 
         ServiceType.COINMARKETCAP, 
         ServiceType.MESSARI,
-        ServiceType.TWITTER,
         ServiceType.OPENAI
     ]
     
@@ -101,7 +100,8 @@ async def add_key(
     service: str = Body(..., description="Service ID (coingecko, coinmarketcap, etc)"),
     api_key: str = Body(..., description="The API key"),
     name: Optional[str] = Body(None, description="Friendly name for the key"),
-    is_pro: bool = Body(False, description="Is this a pro/paid tier key")
+    is_pro: bool = Body(False, description="Is this a pro/paid tier key"),
+    proxy_id: Optional[str] = Body(None, description="Bind to specific proxy ID")
 ):
     """Add a new API key"""
     from server import db
@@ -113,7 +113,7 @@ async def add_key(
         raise HTTPException(400, f"Invalid service. Must be one of: {valid_services}")
     
     manager = get_api_keys_manager(db)
-    result = await manager.add_key(service, api_key, name, is_pro)
+    result = await manager.add_key(service, api_key, name, is_pro, proxy_id)
     
     if not result.get("ok"):
         raise HTTPException(400, result.get("error", "Failed to add key"))

@@ -35,9 +35,8 @@ async def get_all_api_keys():
     manager = get_api_keys_manager(db)
     keys = await manager.get_all_keys_status()
     
-    # Group by category
+    # Group by category - GitHub and Twitter removed (we don't parse them)
     categories = {
-        "developer": ["github", "twitter"],
         "market_data": ["coingecko", "coinmarketcap"],
         "research": ["messari", "dune", "nansen", "glassnode"],
         "ai": ["openai"]
