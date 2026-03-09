@@ -8346,8 +8346,8 @@ function App() {
             </label>
             <div 
               onClick={() => setApiKeyServiceDropdown(!apiKeyServiceDropdown)}
-              className="w-full px-4 py-2 rounded-xl border cursor-pointer flex items-center justify-between"
-              style={{ borderColor: 'white', backgroundColor: 'white', boxShadow: '0 1px 3px rgba(0,0,0,0.08)' }}
+              className="w-full px-4 py-2 rounded-xl cursor-pointer flex items-center justify-between border-0"
+              style={{ backgroundColor: 'white', boxShadow: '0 1px 3px rgba(0,0,0,0.08)' }}
             >
               <span style={{ color: newApiKey.service ? colors.text : colors.textMuted }}>
                 {newApiKey.service 
@@ -8365,8 +8365,8 @@ function App() {
             </div>
             {apiKeyServiceDropdown && (
               <div 
-                className="absolute top-full left-0 right-0 mt-1 rounded-xl border shadow-lg z-50 overflow-hidden max-h-60 overflow-y-auto"
-                style={{ backgroundColor: 'white', borderColor: 'white', boxShadow: '0 4px 20px rgba(0,0,0,0.15)' }}
+                className="absolute top-full left-0 right-0 mt-1 rounded-xl z-50 overflow-hidden max-h-60 overflow-y-auto border-0"
+                style={{ backgroundColor: 'white', boxShadow: '0 4px 20px rgba(0,0,0,0.15)' }}
               >
                 {apiKeysData.services?.map((service) => (
                   <div
@@ -8408,8 +8408,8 @@ function App() {
               value={newApiKey.api_key}
               onChange={(e) => setNewApiKey({...newApiKey, api_key: e.target.value})}
               placeholder="Enter your API key"
-              className="w-full px-4 py-2 rounded-xl border"
-              style={{ borderColor: colors.border }}
+              className="w-full px-4 py-2 rounded-xl border-0"
+              style={{ backgroundColor: 'white', boxShadow: '0 1px 3px rgba(0,0,0,0.08)' }}
             />
           </div>
           
@@ -8438,8 +8438,8 @@ function App() {
               value={newApiKey.name}
               onChange={(e) => setNewApiKey({...newApiKey, name: e.target.value})}
               placeholder="e.g. My CoinGecko Key #1"
-              className="w-full px-4 py-2 rounded-xl border"
-              style={{ borderColor: colors.border }}
+              className="w-full px-4 py-2 rounded-xl border-0"
+              style={{ backgroundColor: 'white', boxShadow: '0 1px 3px rgba(0,0,0,0.08)' }}
             />
           </div>
           
@@ -8451,10 +8451,10 @@ function App() {
             <select
               value={newApiKey.proxy_id || ''}
               onChange={(e) => setNewApiKey({...newApiKey, proxy_id: e.target.value || null})}
-              className="w-full px-4 py-2 rounded-xl border appearance-none"
-              style={{ borderColor: 'white', backgroundColor: 'white', boxShadow: '0 1px 3px rgba(0,0,0,0.08)' }}
+              className="w-full px-4 py-2 rounded-xl border-0 appearance-none cursor-pointer"
+              style={{ backgroundColor: 'white', boxShadow: '0 1px 3px rgba(0,0,0,0.08)' }}
             >
-              <option value="">✓ Direct (no proxy)</option>
+              <option value="">Direct (no proxy)</option>
               {proxyStatus?.proxies?.filter(p => p.enabled).sort((a, b) => a.priority - b.priority).map((proxy, idx) => (
                 <option key={proxy.id} value={proxy.id}>
                   {proxy.server} (Priority: {proxy.priority})
