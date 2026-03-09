@@ -6,6 +6,24 @@
 
 **Repository**: https://github.com/svetlanaslinko057/e5e54545
 
+## Session 3: API Keys Admin Fixes
+
+### Issues Fixed:
+1. ✅ Удалены Twitter и GitHub из списка сервисов API Keys (мы их не парсим)
+2. ✅ Default service теперь пустой ("Select service...") вместо CoinGecko
+3. ✅ Добавлена обязательная проверка выбора сервиса перед добавлением ключа
+4. ✅ Стиль dropdown обновлён (белая обводка, shadow)
+5. ✅ Приоритеты прокси исправлены (1, 2 вместо 1, 1)
+6. ✅ Добавлена поддержка привязки API ключей к прокси (proxy_id)
+7. ✅ Создана система CoinGecko Proxy Rotation для обхода rate limits
+
+### Files Changed:
+- `/app/backend/modules/intel/api/routes_api_keys.py` - Удалены TWITTER/GITHUB, добавлен proxy_id
+- `/app/backend/modules/intel/api_keys_manager.py` - Добавлена поддержка proxy_id
+- `/app/backend/modules/admin/routes_admin.py` - Удалены категории developer с twitter/github
+- `/app/frontend/src/App.js` - UI исправления dropdown, default service
+- `/app/backend/modules/intel/common/coingecko_rotator.py` - Новый: система ротации для CoinGecko
+
 ## Previous Problem Statement
 Реализовать финальные архитектурные доработки:
 1. Graph Growth Monitor
