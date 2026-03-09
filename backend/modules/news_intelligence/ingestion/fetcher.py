@@ -128,12 +128,34 @@ class NewsFetcher:
                 # Author
                 author = entry.get("author", "")
                 
-                # Image
+                # Image - try multiple sources
                 image_url = None
                 if entry.get("media_content"):
                     image_url = entry.media_content[0].get("url")
                 elif entry.get("media_thumbnail"):
                     image_url = entry.media_thumbnail[0].get("url")
+                elif entry.get("links"):
+                    # Check for image in links
+                    for link in entry.links:
+                        if link.get("type", "").startswith("image/"):
+                            image_url = link.get("href")
+                            break
+                
+                # Try to extract from content if no media found
+                if not image_url and content:
+                    soup = BeautifulSoup(content, "html.parser")
+                    img_tag = soup.find("img")
+                    if img_tag and img_tag.get("src"):
+                        img_src = img_tag.get("src")
+                        if img_src.startswith("http"):
+                            image_url = img_src
+                
+                # Try enclosures (podcasts, images)
+                if not image_url and entry.get("enclosures"):
+                    for enc in entry.enclosures:
+                        if enc.get("type", "").startswith("image/"):
+                            image_url = enc.get("url") or enc.get("href")
+                            break
                 
                 # Published date
                 published = entry.get("published", entry.get("updated", ""))

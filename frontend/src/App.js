@@ -2864,6 +2864,10 @@ function App() {
   const [alphaProjects, setAlphaProjects] = useState([]);
   const [alphaSignals, setAlphaSignals] = useState([]);
   const [alphaSearchResults, setAlphaSearchResults] = useState([]);
+  const [newsSearchResults, setNewsSearchResults] = useState([]);
+  const [showNewsSearch, setShowNewsSearch] = useState(false);
+  const [newsPage, setNewsPage] = useState(1);
+  const [newsLanguageFilter, setNewsLanguageFilter] = useState('all');
   const [showAlphaSearchResults, setShowAlphaSearchResults] = useState(false);
   const [selectedEvent, setSelectedEvent] = useState(null);
   const [selectedNewsStory, setSelectedNewsStory] = useState(null);
@@ -3055,15 +3059,27 @@ function App() {
   const handleAlphaSearch = async (query) => {
     if (query.length < 2) {
       setAlphaSearchResults([]);
+      setNewsSearchResults([]);
       setShowAlphaSearchResults(false);
+      setShowNewsSearch(false);
       return;
     }
     
     try {
-      const res = await fetch(`${API_URL}/api/alpha/search?q=${encodeURIComponent(query)}`);
-      const data = await res.json();
-      setAlphaSearchResults(data.results || []);
+      // Search both alpha and news
+      const [alphaRes, newsRes] = await Promise.all([
+        fetch(`${API_URL}/api/alpha/search?q=${encodeURIComponent(query)}`),
+        fetch(`${API_URL}/api/news/search?q=${encodeURIComponent(query)}&limit=20`)
+      ]);
+      
+      const alphaData = await alphaRes.json();
+      const newsData = await newsRes.json();
+      
+      setAlphaSearchResults(alphaData.results || []);
+      setNewsSearchResults(newsData.articles || []);
       setShowAlphaSearchResults(true);
+      setShowNewsSearch(true);
+      setNewsPage(1);
     } catch (e) {
       console.error('Search failed:', e);
     }
@@ -3187,6 +3203,125 @@ function App() {
             </div>
           )}
         </div>
+
+        {/* News Search Results */}
+        {showNewsSearch && newsSearchResults.length > 0 && searchQuery.length >= 2 && (
+          <div 
+            className="rounded-2xl border p-4 mb-4"
+            style={{ backgroundColor: colors.surface, borderColor: colors.border }}
+          >
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="font-semibold flex items-center gap-2" style={{ color: colors.text }}>
+                <Newspaper size={18} style={{ color: '#06b6d4' }} />
+                News Results for "{searchQuery}"
+                <span className="text-sm font-normal" style={{ color: colors.textMuted }}>
+                  ({newsSearchResults.length} articles)
+                </span>
+              </h3>
+              <div className="flex items-center gap-2">
+                {/* Language Filter */}
+                {['all', 'en', 'ru'].map(lang => (
+                  <button
+                    key={lang}
+                    onClick={() => setNewsLanguageFilter(lang)}
+                    className="px-2 py-1 rounded text-xs font-medium"
+                    style={{
+                      backgroundColor: newsLanguageFilter === lang ? colors.accent : colors.surface,
+                      color: newsLanguageFilter === lang ? 'white' : colors.textMuted
+                    }}
+                  >
+                    {lang === 'all' ? 'All' : lang.toUpperCase()}
+                  </button>
+                ))}
+                <button 
+                  onClick={() => { setNewsSearchResults([]); setShowNewsSearch(false); }}
+                  className="p-1 rounded hover:bg-gray-100"
+                >
+                  <X size={16} style={{ color: colors.textMuted }} />
+                </button>
+              </div>
+            </div>
+            
+            {/* News Articles */}
+            <div className="space-y-3 max-h-96 overflow-y-auto">
+              {newsSearchResults
+                .filter(a => newsLanguageFilter === 'all' || a.language === newsLanguageFilter)
+                .slice((newsPage - 1) * 5, newsPage * 5)
+                .map((article, i) => (
+                <div 
+                  key={i}
+                  className="flex gap-3 p-3 rounded-xl hover:bg-gray-50 cursor-pointer transition-all"
+                  onClick={() => article.url && window.open(article.url, '_blank')}
+                >
+                  {(article.image_url || article.image) ? (
+                    <img 
+                      src={article.image_url || article.image} 
+                      alt="" 
+                      className="w-20 h-14 object-cover rounded-lg flex-shrink-0"
+                    />
+                  ) : (
+                    <div 
+                      className="w-20 h-14 rounded-lg flex items-center justify-center flex-shrink-0"
+                      style={{ backgroundColor: colors.surface }}
+                    >
+                      <Newspaper size={20} style={{ color: colors.textMuted }} />
+                    </div>
+                  )}
+                  <div className="flex-1 min-w-0">
+                    <p className="font-medium text-sm line-clamp-2" style={{ color: colors.text }}>
+                      {article.title}
+                    </p>
+                    <div className="flex items-center gap-2 mt-1">
+                      <span className="text-xs" style={{ color: colors.textMuted }}>
+                        {article.source}
+                      </span>
+                      <span className="text-xs px-1.5 py-0.5 rounded" style={{ 
+                        backgroundColor: article.language === 'ru' ? '#fee2e2' : '#dbeafe',
+                        color: article.language === 'ru' ? '#dc2626' : '#2563eb'
+                      }}>
+                        {(article.language || 'en').toUpperCase()}
+                      </span>
+                      <span className="text-xs" style={{ color: colors.textMuted }}>
+                        {article.published_at ? new Date(article.published_at).toLocaleDateString() : ''}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+            
+            {/* Pagination */}
+            {newsSearchResults.filter(a => newsLanguageFilter === 'all' || a.language === newsLanguageFilter).length > 5 && (
+              <div className="flex items-center justify-center gap-2 mt-4 pt-3 border-t" style={{ borderColor: colors.border }}>
+                <button
+                  onClick={() => setNewsPage(p => Math.max(1, p - 1))}
+                  disabled={newsPage === 1}
+                  className="px-3 py-1 rounded text-sm"
+                  style={{ 
+                    backgroundColor: newsPage > 1 ? colors.accent : colors.surface,
+                    color: newsPage > 1 ? 'white' : colors.textMuted
+                  }}
+                >
+                  ← Prev
+                </button>
+                <span className="text-sm" style={{ color: colors.textMuted }}>
+                  Page {newsPage} of {Math.ceil(newsSearchResults.filter(a => newsLanguageFilter === 'all' || a.language === newsLanguageFilter).length / 5)}
+                </span>
+                <button
+                  onClick={() => setNewsPage(p => p + 1)}
+                  disabled={newsPage >= Math.ceil(newsSearchResults.filter(a => newsLanguageFilter === 'all' || a.language === newsLanguageFilter).length / 5)}
+                  className="px-3 py-1 rounded text-sm"
+                  style={{ 
+                    backgroundColor: newsPage < Math.ceil(newsSearchResults.filter(a => newsLanguageFilter === 'all' || a.language === newsLanguageFilter).length / 5) ? colors.accent : colors.surface,
+                    color: newsPage < Math.ceil(newsSearchResults.filter(a => newsLanguageFilter === 'all' || a.language === newsLanguageFilter).length / 5) ? 'white' : colors.textMuted
+                  }}
+                >
+                  Next →
+                </button>
+              </div>
+            )}
+          </div>
+        )}
 
         {/* Filter Tabs */}
         <div className="flex gap-2 overflow-x-auto pb-2">
