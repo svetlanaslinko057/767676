@@ -1987,6 +1987,112 @@ async def force_restart_parser():
         "proxy_status": proxy_manager.get_status()
     }
 
+
+# ═══════════════════════════════════════════════════════════════
+# COINGECKO MANAGER STATUS
+# ═══════════════════════════════════════════════════════════════
+
+@router.get("/admin/coingecko/status")
+async def get_coingecko_status():
+    """
+    Get CoinGecko key manager status.
+    
+    Shows:
+    - Proxies with their assigned API keys
+    - Rate limit status per key
+    - Keyless mode availability
+    - Request statistics
+    """
+    from server import db
+    from ..common.coingecko_manager import get_coingecko_manager
+    from datetime import datetime, timezone
+    
+    manager = get_coingecko_manager(db)
+    await manager.initialize()
+    
+    return {
+        "ts": int(datetime.now(timezone.utc).timestamp() * 1000),
+        **manager.get_status()
+    }
+
+
+@router.post("/admin/coingecko/test")
+async def test_coingecko_manager():
+    """
+    Test CoinGecko API access through all available proxies/keys.
+    
+    Makes a simple ping request to verify connectivity.
+    """
+    from server import db
+    from ..common.coingecko_manager import get_coingecko_manager
+    from datetime import datetime, timezone
+    
+    manager = get_coingecko_manager(db)
+    await manager.initialize()
+    
+    results = []
+    
+    # Test each slot
+    for slot in manager._get_all_slots():
+        slot_result = {
+            "proxy_id": slot.proxy_id,
+            "server": slot.server,
+            "keys_tested": []
+        }
+        
+        # Test with key if available
+        for key in slot.keys:
+            try:
+                import httpx
+                params = {}
+                if key.is_pro:
+                    url = f"{manager.PRO_URL}/ping"
+                    params['x_cg_pro_api_key'] = key.api_key
+                else:
+                    url = f"{manager.BASE_URL}/ping"
+                    params['x_cg_demo_api_key'] = key.api_key
+                
+                async with httpx.AsyncClient(
+                    proxy=slot.proxy_url,
+                    timeout=10
+                ) as client:
+                    response = await client.get(url, params=params)
+                    slot_result["keys_tested"].append({
+                        "key_id": key.key_id[:8] + "...",
+                        "is_pro": key.is_pro,
+                        "status": response.status_code,
+                        "success": response.status_code == 200
+                    })
+            except Exception as e:
+                slot_result["keys_tested"].append({
+                    "key_id": key.key_id[:8] + "...",
+                    "error": str(e)
+                })
+        
+        # Test keyless mode
+        try:
+            import httpx
+            async with httpx.AsyncClient(
+                proxy=slot.proxy_url,
+                timeout=10
+            ) as client:
+                response = await client.get(f"{manager.BASE_URL}/ping")
+                slot_result["keyless_test"] = {
+                    "status": response.status_code,
+                    "success": response.status_code == 200
+                }
+        except Exception as e:
+            slot_result["keyless_test"] = {"error": str(e)}
+        
+        results.append(slot_result)
+    
+    return {
+        "ts": int(datetime.now(timezone.utc).timestamp() * 1000),
+        "results": results
+    }
+
+
+
 @router.get("/scraper/status")
 async def scraper_status():
     """Get scraper engine status"""
